@@ -1,0 +1,5 @@
+interface.pb.*
+interface_pb.*
+interface_grpc.pb.*
+interface_pb2.*
+interface_pb2_grpc.*

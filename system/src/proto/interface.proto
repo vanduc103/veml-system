@@ -1,0 +1,540 @@
+// Copyright 2020 PIDL(Petabyte-scale In-memory Database Lab) http://kdb.snu.ac.kr
+
+syntax = "proto3";
+
+option objc_class_prefix = "DAN";
+
+package dan;
+
+service DANInterface {
+  // system API
+  rpc ping(Void) returns (Code) {}
+  rpc test_stream(stream TestStream) returns (Code){}
+  rpc test_multiunary(TestStream) returns (Code){}
+  rpc test_size(DoubleVec) returns(DoubleVec) {}
+  rpc archive(Str) returns (Code) {}
+  rpc recover(Str) returns (Code) {}
+  rpc request_node_list(Void) returns (NodeInfoVec) {}
+  rpc request_register_node(Str) returns (Code) {}
+  rpc request_socket(Void) returns (HostInfo){}
+  rpc memory_statistics(MemoryStat) returns (Code) {}
+
+  // ddl API
+  rpc create_table(CreateTable) returns (Code) {}
+  rpc drop_table(Str) returns (Code) {}
+  rpc drop_table_if_exists(Str) returns (Code) {}
+  rpc load_table(StrVec) returns (Code) {}
+  rpc create_index(CreateIndex) returns (Code) {}
+  rpc table_partition(TablePartition) returns (Code) {}
+  rpc set_partition(Str) returns (Code) {}
+
+  rpc create_graph(CreateGraph) returns (Code) {}
+  rpc drop_graph(Str) returns (Code) {}
+  rpc drop_graph_if_exists(Str) returns (Code) {}
+  rpc define_vertex(DefineVertex) returns (Code) {}
+  rpc graph_partition(GraphPartition) returns (Code) {}
+  rpc graph_merge(MergeInfo) returns (Code) {}
+
+  rpc transfer_data(TransferBinary) returns (Code) {}
+
+  // dml API
+  rpc insert_record(InsertRecord) returns (Str) {}
+  rpc insert_record_batch(InsertRecordBatch) returns (Code) {}
+
+  rpc import_vertex(ImportVertex) returns (Code) {}
+  rpc insert_vertex(InsertVertex) returns (Long) {}
+  rpc insert_vertex_batch(InsertVertexBatch) returns (Code) {}  
+  rpc import_edge(ImportEdge) returns (Code) {}
+  rpc insert_edge(InsertEdge) returns (Code) {}
+  rpc insert_edge_vp(InsertEdgeVP) returns (Code) {}
+  rpc insert_edge_naive(InsertEdgeNaive) returns (Code) {}
+  rpc insert_edge_batch(InsertEdgeBatch) returns (Code) {}
+  rpc insert_edge_batch_vp(InsertEdgeBatchVP) returns (Code) {}
+ 
+  rpc get_table_info(Str) returns (TableInfo) {}
+  rpc get_num_records(Str) returns (Long) {}
+  rpc table_scan(TableScan) returns (Table) {}
+  rpc index_search(IndexSearch) returns (Table) {}
+  rpc get_graph_info(Str) returns (GraphInfo) {}
+  rpc get_num_vertex(Str) returns (Long) {}
+  rpc get_num_edges(Str) returns (Long) {}
+  rpc adjacent_list(AdjacentList) returns (AdjacentListResult) {}
+  rpc get_edge_list(Str) returns (stream EdgeList) {}
+  rpc get_vertex(GetVertex) returns (Record) {}
+  rpc get_vertex_list(Str) returns (stream VertexList) {}
+  rpc vertex_exists(VertexExists) returns (Code){}
+
+  // remote execution
+  rpc remote_task(RemoteTask) returns (RemoteResult) {}
+  rpc remote_object(RemoteObject) returns (RemoteResult) {}
+  rpc remove_remote_object(RemoteTaskResult) returns (Code) {}
+
+  rpc remote_object_task(RemoteObjectTask) returns (RemoteResult) {}
+  rpc remote_task_result(RemoteTaskResult) returns (RemoteResult) {}
+  rpc remove_task_result(RemoteTaskResult) returns (Code) {}
+
+  rpc load_graph_from_folder(LoadGraphFromFolder) returns (Code){}
+
+  rpc train_node_classifier(NodeClassifierInfo) returns (Code) {}
+}
+
+/**
+ * basic message type
+ */
+message Void {}
+
+message Int {
+  int32 v = 1;
+}
+
+message IntVec {
+  repeated int32 v = 1;
+}
+
+message Long {
+  int64 v = 1;
+}
+
+message LongVec {
+  repeated int64 v = 1;
+}
+
+message Float {
+  float v = 1;
+}
+
+message FloatVec {
+  repeated float v = 1;
+}
+
+message Double {
+  double v = 1;
+}
+
+message DoubleVec {
+  repeated double v = 1;
+}
+
+message Str {
+  string v = 1;
+}
+
+message StrVec {
+  repeated string v = 1;
+}
+
+message Eval {
+  oneof v {
+    int64 l = 1;
+    double d = 2;
+    string s = 3;
+    bool b = 4;
+    IntVec il = 5;
+    LongVec ll = 6;
+    FloatVec fl = 7;
+    DoubleVec dl = 8;
+  }
+}
+
+message Record {
+  repeated Eval v = 1;
+}
+
+message Table {
+  repeated Record v = 1;
+}
+
+message Code {
+    enum Status {
+      OK = 0;
+      ARCHIVE_ERROR = 1;
+      RECOVERY_ERROR = 2;
+      NODE_REIGISTER_ERROR = 3;
+
+      INVALID_TABLE_TYPE = 4;
+      CREATE_TABLE_ERROR = 5;
+      DROP_TABLE_ERROR = 6;
+      LOAD_TABLE_ERROR = 7;
+      DUPLICATED_TABLE_NAME = 8;
+      TABLE_NOT_FOUND = 9;
+      CREATE_INDEX_ERROR = 10;
+      TABLE_PARTITION_ERROR = 11;
+      TABLE_ALREADY_PARTITIONED= 12;
+      INSERT_RECORD_ERROR = 13;
+      TABLE_SCAN_ERROR = 14;
+      INDEX_SEARCH_ERROR = 15;
+
+      CREATE_GRAPH_ERROR = 16;
+      DROP_GRAPH_ERROR = 17;
+      DUPLICATED_GRAPH_NAME = 18;
+      GRAPH_NOT_FOUND = 19;
+      GRAPH_PARTITION_ERROR = 20;
+      GRAPH_ALREADY_PARTIONED = 21;
+      GRAPH_MERGE_ERROR = 22;
+      DEFINE_VERTEX_ERROR = 23;
+      IMPORT_VERTEX_ERROR = 24;
+      INSERT_VERTEX_ERROR = 25;
+      IMPORT_EDGE_ERROR = 26;
+      INSERT_EDGE_ERROR = 27;
+      ADJACENT_LIST_ERROR = 28;
+      GET_VERTEX_ERROR = 29;
+
+      DATA_TRANSFER_ERROR = 30;
+
+      INVALID_PARTITION_TYPE = 31;
+
+      OBJECT_NOT_FOUND = 32;
+
+      SYSTEM_MONITORING_ERROR = 33;
+
+      CAUSAL_DISCOVERY_ERROR = 34;
+    }
+    Status msg = 1;
+}
+
+/**
+ * cluster management message
+ */
+message NodeInfo {
+  int32  id = 1;
+  string host = 2;
+  int32  port = 3;
+  bool   head = 4;
+}
+
+message NodeInfoVec {
+  repeated NodeInfo v = 1;
+}
+
+/**
+ * ddl message
+ */
+message Field {
+  string fname = 1;
+  string ftype = 2;
+}
+
+message CreateTable {
+  string tname = 1;
+  string ttype = 2;
+  int32 inc_fid = 3;
+  int32 inc_start = 4;
+  repeated Field schema = 5;
+}
+
+message CreateIndex {
+  string tname = 1;
+  int32 fid = 2;
+  bool unique = 3;
+}
+
+message TablePartition {
+  string tname = 1;
+  int32 fid = 2;
+  StrVec nodes = 3;
+}
+
+message TableInfo {
+  StrVec fields = 1;
+  StrVec nodes = 2;
+  int32 part_fid = 3;
+}
+
+message CreateGraph {
+  string gname = 1;
+  string vpname = 2;
+  repeated Field vschema = 3;
+  int32 vpfid = 4;
+  string vptype = 5;
+  repeated Field eschema = 6;
+  string eptype = 7;
+  bool incoming = 8;
+  bool merge = 9;
+  bool is_partition = 10;
+  int32 part_type = 11;
+  StrVec nodes = 12;
+}
+
+message GraphPartition {
+  string gname = 1;
+  string ptype = 2;
+  StrVec nodes = 3;
+  int32 dop = 4;
+}
+
+message GraphInfo {
+  string gname = 1;
+  StrVec vpname = 2;
+  repeated StrVec vpfields = 3;
+  StrVec epfields = 4;
+  bool incoming = 5;
+}
+
+/**
+ * dml message
+ */
+message InsertRecord {
+  string tname = 1;
+  Record values = 2;
+}
+
+message InsertRecordStr {
+  string tname = 1;
+  StrVec values = 2;
+}
+
+message InsertRecordBatch {
+  string tname = 1;
+  Table batch = 2;
+}
+
+message DefineVertex {
+  string gname = 1;
+  string vpname = 2;
+  repeated Field vschema = 3;
+  int32 vpfid = 4;
+  string vptype = 5;
+}
+
+message ImportVertex {
+  string gname = 1;
+  string vpname = 2;
+  string csv = 3;
+  string delim = 4;
+  bool header = 5;
+}
+
+message InsertVertex {
+  string gname = 1;
+  Record vprop = 2;
+  int32 vpid = 3;
+}
+
+message InsertVertexBatch {
+  string gname = 1;
+  Table vprop = 2;
+  int32 vpid = 3;
+  IntVec vpids = 4;
+}
+
+message ImportEdge {
+  string gname = 1;
+  string csv = 2;
+  int32 src_vpid = 3;
+  int32 dst_vpid = 4;
+  string delim = 5;
+  bool header = 6;
+  int32 batch = 7;
+  int32 dop = 8;
+}
+
+message InsertEdge {
+  string gname = 1;
+  Eval src = 2;
+  Eval dest = 3;
+  int32 src_vpid = 4;
+  int32 dest_vpid = 5;
+  Record eprop = 6;
+  bool ignore_in = 7;
+  bool only_in = 8;
+}
+
+message InsertEdgeVP {
+  string gname = 1;
+  Record src = 2;
+  Record dest = 3;
+  int32 src_vpid = 4;
+  int32 dest_vpid = 5;
+  Record eprop = 6;
+}
+
+message InsertEdgeNaive {
+  string gname = 1;
+  int64 src = 2;
+  int64 dest = 3;
+  Record eprop = 4;
+  bool ignore_in = 5;
+  bool only_in = 6;
+}
+
+message InsertEdgeBatch {
+  string gname = 1;
+  Record src = 2;
+  Record dest = 3;
+  Table eprop = 4;
+  IntVec src_vpid = 5;
+  IntVec dest_vpid = 6;
+  bool ignore_in = 7;
+  bool only_in = 8;
+}
+
+message InsertEdgeBatchVP {
+  string gname = 1;
+  Table src = 2;
+  Table dest = 3;
+  Table eprop = 4;
+}
+
+message TableScan {
+  string tname = 1;
+  IntVec fids = 2;
+  int64 limit = 3;
+}
+
+message IndexSearch {
+  string tname = 1;
+  int64 fid = 2;
+  Eval val = 3;
+  IntVec fids = 4;
+}
+
+message AdjacentList {
+  string gname = 1;
+  Eval src = 2;
+  IntVec fids = 3;
+  int32 vpid = 4;
+  bool incoming = 5;
+}
+
+message AdjacentListResult {
+  Table dests = 1;
+  Record eprops = 2;
+  StrVec nodes = 3;
+}
+
+message GetVertex {
+  string gname = 1;
+  Eval vkey = 2;
+  int32 vpid = 3;
+  int64 vid = 4;
+  IntVec fids = 5;
+}
+
+message VertexList {
+  Record vkey = 1;
+  IntVec vpid = 2;
+  Table vprop = 3;
+}
+
+message EdgeList {
+  Record src = 1;
+  Record dst = 2;
+}
+
+/**
+ * remote execution message type
+ */
+message RemoteTask{
+  bytes func = 1;
+  bytes args = 2;
+  bytes kargs = 3;
+  bool immediate_return = 4;
+}
+
+message RemoteResult{
+  bytes results = 1;
+} 
+
+message RemoteObject{
+  bytes cls = 1;
+  bytes args = 2;
+  bytes kargs = 3;
+}
+
+message RemoteTaskResult{
+  int64 object_id = 1;
+}
+
+message RemoteObjectTask{
+  int64 object_id = 1;
+  string fname = 2;
+  bytes args = 3;
+  bytes kargs = 4;
+  bool immediate_return = 5;
+}
+
+message LoadGraphFromFolder{
+  string folder = 1;
+  string gname = 2;
+  repeated Field eschema = 3;
+  string vptype = 4;
+  string eptype = 5;
+  bool incoming = 6;
+  bool merge = 7;
+  bool is_partition = 8;
+  int32 part_type = 9;
+  StrVec nodes = 10;
+}
+
+message VertexExists {
+  string gname = 1;
+  Eval vkey = 2;
+  int32 vpid = 3;
+}
+
+message TestStream{
+  Table data = 1;
+}
+
+message HostInfo{
+  string addr = 1;
+  int32 port = 2;
+}
+
+message Binary {
+  bytes v = 1;
+}
+
+message MergeInfo {
+  string gname = 1;
+  int32 least = 2;
+  int32 num_split = 3;
+}
+
+message TransferBinary {
+  int32 type = 1;
+  string name = 2;
+  int32 pa_id = 3;
+  int32 sgmt_id = 4;
+  Binary binary = 5;
+}
+
+message MemoryStat {
+  bool verbose = 1;
+  string path = 2;
+  int32 level = 3;
+  StrVec nodes = 4;
+}
+
+message APPNP{
+  float alpha = 1;
+  int32 k = 2;
+}
+
+message GAT{
+  int32 num_head = 1;
+  bool agg = 2;
+  int32 importance_spl = 3;
+}
+
+message ModelInfo {
+  oneof m{
+    APPNP appnp = 1;
+    GAT gat = 2;
+  }
+}
+
+message NodeClassifierInfo {
+  string gname = 1;
+  IntVec fids = 2;
+  int32 input_size = 3;
+  int32 hidden_size = 4;
+  int32 num_class = 5;
+  float dropout = 6;
+  float learning_rate = 7;
+  int32 data_update_interval = 8;
+  bool merge_manually = 9;
+  int32 num_epochs = 10;
+  ModelInfo model_info = 11;
+  string log_file = 12;
+}

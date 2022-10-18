@@ -1,0 +1,161 @@
+#!/usr/bin/env python
+
+import sys, os 
+from pathlib import Path
+from multiprocessing import Process, Queue
+
+import argparse
+from clint.textui import puts, colored
+
+def import_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--build', type=str, default='Debug',
+            help='type of build, Release or Debug')
+    parser.add_argument('--target', type=str, default='')
+    parser.add_argument('--libtorch_dir', type=str, default='')
+    parser.add_argument('--dop', type=int, default=-1)
+    parser.add_argument('--skip_thirdparty', action='store_true')
+
+    args = parser.parse_args()
+    return args
+
+def torch_path(q):
+    import torch
+    ret = os.path.dirname(torch.__file__)
+    q.put(ret)
+
+def get_torch_path():
+    queue = Queue()
+    p = Process(target=torch_path, args=(queue, ))
+    p.start()
+    p.join()
+    return queue.get()
+
+class Log:
+    def info(msg):
+        puts(colored.green('[DAN INFO] ' + str(msg).strip()))
+    def error(msg):
+        puts(colored.red('[DAN ERROR] ' + str(msg).strip()))
+
+def install_thirdparty(args, base_path):
+    try:
+        Log.info(f'get submodules')
+        os.system('git submodule update --init --recursive')
+
+        # install protobuf
+        Log.info(f'install protobuf')
+        protobuf_path = os.path.join(base_path, 'thirdparty/protobuf')
+        protobuf_target = os.path.join(base_path, 'thirdparty/protobuf-lib')
+
+        Path(protobuf_target).mkdir(exist_ok=True)
+        os.chdir(protobuf_path)
+
+        os.system(f'./autogen.sh')
+        os.system(f'./configure --prefix={protobuf_target}')
+        os.system(f'make -j{args.dop}')
+        os.system(f'make check')
+        os.system(f'make install')
+
+        # install tensorboard_logger
+        Log.info(f'install tensorboard_logger')
+        path = os.path.join(base_path, 'thirdparty/tensorboard_logger/build')
+        Path(path).mkdir(exist_ok=True)
+        os.chdir(path)
+        cmake = 'cmake '
+        cmake += f'-DCMAKE_PREFIX_PATH={protobuf_target} '
+        cmake += f'-DCMAKE_CXX_FLAGS=-fPIC ..'
+        os.system(cmake)
+        os.system(f'make -j{args.dop}')
+        os.system('mv *.h ../include')
+
+        # install libtorch
+        Log.info(f'install libtorch')
+        path = os.path.join(base_path, 'thirdparty')
+        os.chdir(path)
+        wget = ('wget https://download.pytorch.org/libtorch'
+                '/cpu/libtorch-cxx11-abi-shared-with-deps-1.9.0%2Bcpu.zip')
+        os.system(wget)
+
+        filelist = os.listdir(path)
+        for f in filelist:
+            if f.startswith('libtorch-cxx11-abi-shared-with-deps'):
+                zipfile = os.path.join(path, f)
+                os.system(('unzip ' + str(zipfile)))
+                os.system(('rm ' + str(zipfile)))
+
+        from_path = os.path.join(base_path, 'thirdparty/libtorch/lib')
+        to_path = os.path.join(get_torch_path(), 'lib')
+        fname = ['libtorch_python.so', 'libtorch_cpu.so',
+                'libc10.so', 'libgomp-75eea7e8.so.1']
+        for f in fname:
+            so_file = os.path.join(from_path, f)
+            os.system(f'cp {so_file} {to_path}')
+
+    except Exception as e:
+        Log.error(e)
+
+def build_dan(args, base_path):
+    try:
+        # check build option
+        if args.build not in ['Release', 'Debug']:
+            raise ValueError('Invalid build type, use \'Release\' or \'Debug\'')
+
+        # find libtorch directory
+        if not args.libtorch_dir:
+            args.libtorch_dir = os.path.join(base_path, 'thirdparty/libtorch')
+        if (not os.path.exists(args.libtorch_dir)
+                or not os.path.isdir(args.libtorch_dir)):
+            raise ValueError(f'not existing directory, {args.libtorch_dir}')
+
+        # check dop
+        if args.dop < 0:
+            args.dop = os.cpu_count()
+
+        # create target directory
+        if not args.target:
+            args.target = os.path.join(base_path, 'build')
+        Log.info(f'create target directory, {args.target}')
+        Path(args.target).mkdir(parents=True, exist_ok=True)
+
+        # change current directory to target directory
+        os.chdir(args.target)
+
+        # run cmake
+        cmake = f'cmake -DCMAKE_BUILD_TYPE={args.build} '
+        if args.libtorch_dir:
+            cmake += f'-DCMAKE_PREFIX_PATH={args.libtorch_dir} '
+        cmake += '..'
+        Log.info(f'run cmake, {cmake }')
+        os.system(cmake)
+
+        # build
+        if args.dop < 0:
+            args.dop = os.cpu_count()
+        make = f'make -j{args.dop}'
+        Log.info(f'Build dan source')
+        os.system(make)
+
+        # install python lib
+        python_path = os.path.join(base_path, 'python')
+        Log.info(f'install dan python library')
+        os.system(f'pip install --user -e {python_path}')
+
+    except Exception as e:
+        Log.error(e)
+
+if __name__ == '__main__':
+    args = import_args()
+    print(args)
+
+    # check dop
+    if args.dop < 0:
+        args.dop = os.cpu_count()
+
+    path = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+
+    # install thirdparty libraries
+    if not args.skip_thirdparty:
+        install_thirdparty(args, path)
+
+    # build dan
+    build_dan(args, path)
